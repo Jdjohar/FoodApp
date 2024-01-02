@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import Navbar from '../components/Navbar';
 export default function Signup() {
-  const [credentials, setCredentials] = useState({ name: "", email: "", password: "", geolocation: "" })
+  const [credentials, setCredentials] = useState({ name: "", email: "", password: "", geolocation: "", role: "user" });
   let [address, setAddress] = useState("");
   let navigate = useNavigate()
 
@@ -30,7 +30,7 @@ export default function Signup() {
 
     });
     const { location } = await response.json()
-    console.log(location);
+    console.log(location,"Location");
     setAddress(location);
     setCredentials({ ...credentials, [e.target.name]: location })
   }

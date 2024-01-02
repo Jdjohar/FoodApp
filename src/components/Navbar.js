@@ -23,6 +23,8 @@ export default function Navbar(props) {
     }
 
     const items = useCart();
+   
+
     return (
         <div>
             <nav className="navbar navbar-expand-lg navbar-dark bg-success position-sticky"
@@ -52,6 +54,7 @@ export default function Navbar(props) {
                                 <div className="btn bg-white text-success mx-2 " onClick={loadCart}>
                                     <Badge color="secondary" badgeContent={items.length} >
                                         <ShoppingCartIcon />
+                                        
                                     </Badge>
                                     Cart
                                 </div>
