@@ -1,6 +1,8 @@
 const express = require('express')
 const User = require('../models/User')
 const Order = require('../models/Orders')
+const Products = require('../models/Product')
+const Category = require('../models/Category')
 const router = express.Router()
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs')
@@ -8,6 +10,24 @@ var jwt = require('jsonwebtoken');
 const axios = require('axios')
 const fetch = require('../middleware/fetchdetails');
 const jwtSecret = "HaHa"
+const multer = require('multer');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+
+// Create a Multer storage configuration for handling file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'uploads/'); // Set the destination folder for file uploads
+    },
+    filename: function (req, file, cb) {
+      cb(null, file.originalname); // Set a unique filename for each uploaded file
+    },
+  });
+  
+  const upload = multer({ storage: storage });
+
+
+
 // var foodItems= require('../index').foodData;
 // require("../index")
 //Creating a user and storing data to MongoDB Atlas, No Login Requiered
@@ -51,6 +71,52 @@ router.post('/createuser', [
     }
 })
 
+
+
+//Get a Product
+// Endpoint for fetching product details
+router.get('/getproducts/:productId', async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await Products.findById(productId);
+  
+      if (!product) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      res.status(200).json(
+        {
+            status: 'success',
+            data: product
+        }
+      )
+     
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  });
+  
+
+// Create a Product
+
+router.post('/products', async(req, res) => {
+    console.log("Products");
+
+    try {
+        console.log("start try");
+        const newProduct = new Products(req.body);
+        const savedProduct = await newProduct.save();
+        res.json(savedProduct);
+        
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+
+}) 
+
+
+
+
 // Authentication a User, No login Requiered
 router.post('/login', [
     body('email', "Enter a Valid Email").isEmail(),
@@ -75,12 +141,14 @@ router.post('/login', [
         }
         const data = {
             user: {
-                id: user.id
+                id: user.id,
+                role: user.role
             }
         }
+        console.log(data, "data");
         success = true;
         const authToken = jwt.sign(data, jwtSecret);
-        res.json({ success, authToken })
+        res.json({ success, authToken, role:data.user.role})
 
 
     } catch (error) {
@@ -136,6 +204,7 @@ router.post('/foodData', async (req, res) => {
         // const userId = req.user.id;
         // await database.listCollections({name:"food_items"}).find({});
         res.send([global.foodData, global.foodCategory])
+
     } catch (error) {
         console.error(error.message)
         res.send("Server Error")
@@ -193,5 +262,183 @@ router.post('/myOrderData', async (req, res) => {
     
 
 });
+
+router.get('/products/:productId', async (req, res) => {
+    try {
+      const productId = req.params.productId;
+      const product = await Products.findById(productId);
+  
+      if (!product) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+  
+      res.json(product);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  });
+
+
+  // Define a route to handle product creation
+router.post('/api/products', upload.single('img'), async (req, res) => {
+    
+    try {
+      // Extract product data from the request body
+      const { name, description, CategoryName, options } = req.body;
+      const img = req.file.filename;
+      //   const optionss = JSON.parse(options);
+      console.log(img);
+      // Create a new product instance
+      const newProduct = new Products({
+          name,
+          description,
+          CategoryName,
+          img:`http://localhost:5000/${img}`,
+          options: JSON.parse(options)
+        });
+        
+        console.log(newProduct.options);
+        console.log(newProduct.CategoryName);
+     
+  
+      // Save the product to the database
+      const savedProduct = await newProduct.save();
+        res.status(201).json({
+            status: 'success',
+            data: savedProduct
+          });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // Define a route to handle product creation
+router.post('/api/category', upload.single('catimg'), async (req, res) => {
+    
+    try {
+      // Extract product data from the request body
+      const { CategoryName } = req.body;
+      const img = req.file.filename;
+      //   const optionss = JSON.parse(options);
+      console.log(img);
+      // Create a new product instance
+      const newCategory = new Category({
+         
+          CategoryName,
+          img:`http://localhost:5000/${img}`,
+        });
+        
+      
+  
+      // Save the product to the database
+      const savedCategory = await newCategory.save();
+        res.status(201).json({
+            status: 'success',
+            data: savedCategory
+          });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+  
+
+//get a list of Category
+  router.get('/categories', async (req, res) => {
+    try {
+      const categories = await Category.find();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+
+  //forgotPassword api
+  const resetTokens = {};
+  router.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+
+    try {
+      // Check if the email exists in MongoDB
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.status(404).json({ message: 'Email not found.' });
+      }
+  
+      // Generate a unique reset token
+      const resetToken = crypto.randomBytes(20).toString('hex');
+  
+      // Save the reset token and its expiry date in the database
+      user.resetToken = resetToken;
+      user.resetTokenExpiry = Date.now() + 3600000; // Token expires in 1 hour
+      await user.save();
+  
+  
+    // Send a password reset email to the user
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+    secure: false,
+    auth: {
+        user: "jdwebservices1@gmail.com",
+        pass: "cwoxnbrrxvsjfbmr"
+    },
+    tls:{
+      rejectUnauthorized: false
+    }
+    });
+  
+    const mailOptions = {
+        from: 'jdwebservices1@gmail.com',
+        to: email,
+        subject: 'Password Reset',
+        text: `Click the following link to reset your password: http://localhost:3000/reset-password/${resetToken}`,
+      };
+  
+      await transporter.sendMail(mailOptions);
+      res.json({ 
+        message: 'Password reset email sent. Check your inbox.',
+        resetToken:resetToken
+     });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'An error occurred while processing the request.' });
+    }
+  });
+
+
+  // Reset password endpoint
+  router.post('/reset-password/:resetToken', async (req, res) => {
+    const { resetToken } = req.params;
+    const { password } = req.body;
+  
+    try {
+      // Find user by reset token
+      const user = await User.findOne({ resetToken, resetTokenExpiry: { $gt: Date.now() } });
+  
+      if (!user) {
+        return res.status(400).json({ message: 'Invalid or expired reset token.' });
+      }
+  
+      const salt = await bcrypt.genSalt(10)
+      let securePass = await bcrypt.hash(password, salt);
+
+      // Update password and reset token
+      user.password = securePass; // In a real-world scenario, remember to hash the password
+      user.resetToken = undefined;
+      user.resetTokenExpiry = undefined;
+  
+      // Save the updated user
+      await user.save();
+  
+      return res.json({ message: 'Password reset successfully.' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Internal server error.' });
+    }
+  });
+
 
 module.exports = router

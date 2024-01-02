@@ -20,6 +20,19 @@ const UserSchema = new Schema({
         type:String,
         required:true
     },
+    resetToken:{
+        type:String,
+
+    },
+    resetTokenExpiry:{
+        type:Date,
+     
+    },
+    role: {
+        type: String,
+        enum: ['user', 'admin'], // Role can be 'user' or 'admin'
+        default: 'user' // Default role is 'user'
+    },
     date:{
         type:Date,
         default:Date.now
